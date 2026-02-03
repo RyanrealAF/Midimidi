@@ -1,0 +1,7 @@
+{
+  "name": "BUILDWHILEBLEEDING Studio",
+  "description": "A drum separation studio with AI-powered voice conversation, featuring a mixer, waveform display, and pipeline status.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
