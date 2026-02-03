@@ -2,10 +2,10 @@
   "name": "buildwhilebleeding-studio",
   "private": true,
   "version": "0.0.0",
-  "main": "main.cjs",
+  "main": "dist/main.cjs",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && tsc -b && cp main.cjs dist/main.cjs",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:build": "npm run build && electron-builder build --windows"
@@ -37,10 +37,15 @@
     },
     "files": [
       "dist/**/*",
-      "main.cjs"
+      "package.json"
     ],
     "win": {
-      "target": "portable"
+      "target": "portable",
+      "icon": "dist/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   }
 }

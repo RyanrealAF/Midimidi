@@ -1,7 +1,8 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
-// Check if we are in development mode
+// Determine if we are in development mode
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 function createWindow() {
@@ -13,7 +14,6 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      // Allow media access
       webSecurity: true,
     },
   });
@@ -26,7 +26,9 @@ function createWindow() {
     win.webContents.openDevTools();
   } else {
     // In production, load the built index.html
-    win.loadFile(path.join(__dirname, 'dist', 'index.html'));
+    // __dirname is the directory containing main.cjs (which is copied to dist/)
+    const indexPath = path.join(__dirname, 'index.html');
+    win.loadFile(indexPath);
   }
 }
 
