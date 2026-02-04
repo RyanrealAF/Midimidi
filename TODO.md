@@ -16,9 +16,9 @@
 - [x] Ensure __dirname is properly defined
 
 ### 4. Build the Windows executable
-- [ ] Run `npm install`
-- [ ] Run `npm run build`
-- [ ] Run `npm run electron:build`
+- [x] Run `npm install`
+- [x] Run `npm run build`
+- [x] Run `npm run electron:build`
 
 ## Notes:
 - Project is Electron + React + Vite

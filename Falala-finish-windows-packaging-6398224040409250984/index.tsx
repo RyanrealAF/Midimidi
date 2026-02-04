@@ -59,7 +59,7 @@ const App: React.FC = () => {
   
   // Audio Refs
   const audioContextRef = useRef<AudioContext | null>(null);
-  const audioSourceRef = useRef<MediaElementSourceNode | null>(null);
+  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const gainNodesRef = useRef<{[key: string]: GainNode}>({});
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);

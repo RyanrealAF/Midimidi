@@ -1,5 +1,6 @@
 {
   "name": "buildwhilebleeding-studio",
+  "description": "A drum separation studio with AI-powered voice conversation, featuring a mixer, waveform display, and pipeline status.",
   "private": true,
   "version": "0.0.0",
   "main": "dist/main.cjs",
@@ -40,8 +41,7 @@
       "package.json"
     ],
     "win": {
-      "target": "portable",
-      "icon": "dist/icon.ico"
+      "target": "portable"
     },
     "nsis": {
       "oneClick": false,
