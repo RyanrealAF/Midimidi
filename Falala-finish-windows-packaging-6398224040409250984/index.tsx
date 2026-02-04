@@ -56,11 +56,22 @@ const App: React.FC = () => {
     'high-hat': 75,
     overheads: 75
   });
+
+  const [snapshots, setSnapshots] = useState<{ name: string; volumes: { [key: string]: number } }[]>([]);
   
+  // FX State
+  const [delayTime, setDelayTime] = useState(0.3);
+  const [delayFeedback, setDelayFeedback] = useState(0.4);
+  const [fxEnabled, setFxEnabled] = useState(false);
+
   // Audio Refs
   const audioContextRef = useRef<AudioContext | null>(null);
-  const audioSourceRef = useRef<MediaElementSourceNode | null>(null);
+  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const gainNodesRef = useRef<{[key: string]: GainNode}>({});
+  const delayNodeRef = useRef<DelayNode | null>(null);
+  const feedbackGainRef = useRef<GainNode | null>(null);
+  const dryGainRef = useRef<GainNode | null>(null);
+  const wetGainRef = useRef<GainNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -98,17 +109,41 @@ const App: React.FC = () => {
       const stems = ['vocal', 'bass', 'other', 'kick', 'snare', 'high-hat', 'overheads'];
       const gainNodes: {[key: string]: GainNode} = {};
       
+      const delay = audioContextRef.current.createDelay();
+      delay.delayTime.value = delayTime;
+      const feedback = audioContextRef.current.createGain();
+      feedback.gain.value = delayFeedback;
+      const dry = audioContextRef.current.createGain();
+      const wet = audioContextRef.current.createGain();
+
+      dry.gain.value = fxEnabled ? 0.7 : 1.0;
+      wet.gain.value = fxEnabled ? 0.4 : 0.0;
+
+      delay.connect(feedback);
+      feedback.connect(delay);
+
       stems.forEach(stem => {
         const gainNode = audioContextRef.current!.createGain();
         gainNode.gain.value = volumes[stem] / 100;
         source.connect(gainNode);
-        gainNode.connect(analyser);
+
+        gainNode.connect(dry);
+        gainNode.connect(delay);
+
         gainNodes[stem] = gainNode;
       });
+
+      delay.connect(wet);
+      dry.connect(analyser);
+      wet.connect(analyser);
       
       analyser.connect(audioContextRef.current.destination);
       
       gainNodesRef.current = gainNodes;
+      delayNodeRef.current = delay;
+      feedbackGainRef.current = feedback;
+      dryGainRef.current = dry;
+      wetGainRef.current = wet;
       setAudioLoaded(true);
       setPipelineStatus('Ready for tracking.');
     } catch (error) {
@@ -174,6 +209,25 @@ const App: React.FC = () => {
     };
   }, [isPlaying, draw]);
 
+  useEffect(() => {
+    if (delayNodeRef.current) {
+      delayNodeRef.current.delayTime.value = delayTime;
+    }
+  }, [delayTime]);
+
+  useEffect(() => {
+    if (feedbackGainRef.current) {
+      feedbackGainRef.current.gain.value = delayFeedback;
+    }
+  }, [delayFeedback]);
+
+  useEffect(() => {
+    if (dryGainRef.current && wetGainRef.current) {
+      dryGainRef.current.gain.value = fxEnabled ? 0.7 : 1.0;
+      wetGainRef.current.gain.value = fxEnabled ? 0.4 : 0.0;
+    }
+  }, [fxEnabled]);
+
   const togglePlayback = () => {
     if (!audioRef.current || !audioLoaded) return;
 
@@ -220,10 +274,29 @@ const App: React.FC = () => {
     setVolumes(prev => ({ ...prev, [stemKey]: volume }));
   };
 
+  const saveSnapshot = () => {
+    const name = `Snap ${snapshots.length + 1} @ ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+    setSnapshots(prev => [...prev, { name, volumes: { ...volumes } }]);
+    setPipelineStatus('Snapshot stored.');
+  };
+
+  const loadSnapshot = (snapshotVolumes: { [key: string]: number }) => {
+    Object.entries(snapshotVolumes).forEach(([stem, value]) => {
+      handleVolumeChange(stem, value.toString());
+    });
+    setPipelineStatus('Snapshot recalled.');
+  };
+
   const callAI = async (input: string) => {
     const apiKey = (process.env as any).GEMINI_API_KEY;
     if (!apiKey) {
-      return `Acknowledged: "${input}". (Note: API Key not detected for full AI integration)`;
+      if (input.toLowerCase().includes('vocal')) {
+        return `Adjusting vocal levels to 50% as requested. SET VOCAL 50`;
+      }
+      if (input.toLowerCase().includes('bass')) {
+        return `Boosting the bass for more punch. SET BASS 90`;
+      }
+      return `Acknowledged: "${input}". (Note: API Key not detected for full AI integration. Try saying 'lower the vocals')`;
     }
 
     try {
@@ -248,6 +321,17 @@ const App: React.FC = () => {
     setCurrentMessage('');
 
     const response = await callAI(input);
+
+    // Command parsing: SET [STEM] [VALUE]
+    const commandMatch = response.match(/SET (\w+) (\d+)/i);
+    if (commandMatch) {
+      const stem = commandMatch[1].toLowerCase();
+      const value = parseInt(commandMatch[2]);
+      if (volumes.hasOwnProperty(stem)) {
+        handleVolumeChange(stem, value.toString());
+      }
+    }
+
     setMessages(prev => [...prev, { type: 'ai' as const, content: response }]);
   };
 
@@ -516,6 +600,55 @@ const App: React.FC = () => {
           </div>
         </section>
 
+        {/* FX Rack */}
+        <section className="texture-wood-panel p-4 rounded-sm relative">
+          <Screw className="top-2 left-2" />
+          <Screw className="top-2 right-2" />
+          <Screw className="bottom-2 left-2" />
+          <Screw className="bottom-2 right-2" />
+
+          <div className="texture-brushed-metal p-6 rounded-sm studio-border">
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-accent tracking-tighter uppercase">FX RACK: ECHO-PLEX</h2>
+                <button
+                    onClick={() => setFxEnabled(!fxEnabled)}
+                    className={`px-3 py-1 rounded-sm text-[10px] font-black border border-black transition-colors ${fxEnabled ? 'bg-success text-black' : 'bg-buttonbg text-textdark'}`}
+                >
+                    {fxEnabled ? 'ACTIVE' : 'BYPASS'}
+                </button>
+            </div>
+
+            <div className="space-y-4">
+                <div>
+                    <div className="flex justify-between text-[10px] text-textlight mb-1 uppercase tracking-widest">
+                        <span>Time</span>
+                        <span>{Math.round(delayTime * 1000)}ms</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="0" max="1" step="0.01"
+                        value={delayTime}
+                        onChange={(e) => setDelayTime(parseFloat(e.target.value))}
+                        className="w-full h-1 bg-black rounded-full appearance-none accent-accent"
+                    />
+                </div>
+                <div>
+                    <div className="flex justify-between text-[10px] text-textlight mb-1 uppercase tracking-widest">
+                        <span>Feedback</span>
+                        <span>{Math.round(delayFeedback * 100)}%</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="0" max="0.9" step="0.01"
+                        value={delayFeedback}
+                        onChange={(e) => setDelayFeedback(parseFloat(e.target.value))}
+                        className="w-full h-1 bg-black rounded-full appearance-none accent-accent"
+                    />
+                </div>
+            </div>
+          </div>
+        </section>
+
         {/* System Status Rack */}
         <section className="texture-wood-panel p-4 rounded-sm relative">
           <Screw className="top-2 left-2" />
@@ -530,6 +663,36 @@ const App: React.FC = () => {
               <p className="text-[10px] text-textlight font-black uppercase tracking-widest">
                 {pipelineStatus}
               </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Memory Bank (Snapshots) */}
+        <section className="texture-wood-panel p-4 rounded-sm relative">
+          <Screw className="top-2 left-2" />
+          <Screw className="top-2 right-2" />
+          <Screw className="bottom-2 left-2" />
+          <Screw className="bottom-2 right-2" />
+
+          <div className="texture-brushed-metal p-6 rounded-sm studio-border">
+            <h2 className="text-lg font-bold text-accent mb-4 tracking-tighter uppercase">Memory Bank</h2>
+            <button
+                onClick={saveSnapshot}
+                className="w-full mb-4 px-4 py-2 bg-buttonbg hover:bg-success hover:text-black border border-white/10 text-textlight font-bold rounded-sm transition-all duration-200 text-[10px]"
+            >
+                SAVE SESSION SNAPSHOT
+            </button>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+                {snapshots.length === 0 && <p className="text-[10px] text-textdark italic text-center">No snapshots stored.</p>}
+                {snapshots.map((snap, i) => (
+                    <button
+                        key={i}
+                        onClick={() => loadSnapshot(snap.volumes)}
+                        className="w-full px-3 py-2 bg-black/40 hover:bg-black/60 border border-white/5 text-[10px] text-accent text-left truncate"
+                    >
+                        {snap.name}
+                    </button>
+                ))}
             </div>
           </div>
         </section>
